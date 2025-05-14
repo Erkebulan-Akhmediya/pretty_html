@@ -6,8 +6,6 @@ import (
 	"log"
 )
 
-var depth int
-
 func main() {
 	node, err := parseUrl()
 	if err != nil {
@@ -18,72 +16,70 @@ func main() {
 }
 
 func prettify(n *html.Node) {
-	forEachNode(n, startElement, endElement)
-}
+	var depth int
+	printJS := func(n *html.Node) {
+		fmt.Printf("%*s", depth*2, "")
+		runes := []rune(n.Data)
+		disabledFmt := false
+		for i, r := range runes {
+			if r == '\'' {
+				fmt.Print(string(r))
+				disabledFmt = !disabledFmt
+				continue
+			}
 
-func startElement(n *html.Node) {
-	if n.Type == html.ElementNode {
-		fmt.Printf("%*s<%s", depth*2, "", n.Data)
-		for _, attr := range n.Attr {
-			fmt.Printf(" %s='%s'", attr.Key, attr.Val)
+			if disabledFmt {
+				fmt.Print(string(r))
+				continue
+			}
+
+			if r == '{' {
+				fmt.Println(string(r))
+				depth++
+				fmt.Printf("%*s", depth*2, "")
+			} else if r == '}' {
+				fmt.Println()
+				depth--
+				fmt.Printf("%*s", depth*2, "")
+				fmt.Print(string(r))
+			} else if r == ';' && i < len(runes)-1 && runes[i+1] != '}' {
+				fmt.Println(string(r))
+				fmt.Printf("%*s", depth*2, "")
+			} else {
+				fmt.Print(string(r))
+			}
 		}
-		if n.FirstChild != nil {
-			fmt.Println(">")
-		} else {
-			fmt.Println(" />")
-		}
-		depth++
-	} else if n.Type == html.TextNode {
-		if n.Parent != nil && n.Parent.Data == "script" {
-			printJS(n)
-		} else {
-			fmt.Printf("%*s%s\n", depth*2, "", n.Data)
-		}
+		fmt.Println()
 	}
-}
-
-func printJS(n *html.Node) {
-	fmt.Printf("%*s", depth*2, "")
-	runes := []rune(n.Data)
-	disabledFmt := false
-	for i, r := range runes {
-		if r == '\'' {
-			fmt.Print(string(r))
-			disabledFmt = !disabledFmt
-			continue
-		}
-
-		if disabledFmt {
-			fmt.Print(string(r))
-			continue
-		}
-
-		if r == '{' {
-			fmt.Println(string(r))
+	startElement := func(n *html.Node) {
+		if n.Type == html.ElementNode {
+			fmt.Printf("%*s<%s", depth*2, "", n.Data)
+			for _, attr := range n.Attr {
+				fmt.Printf(" %s='%s'", attr.Key, attr.Val)
+			}
+			if n.FirstChild != nil {
+				fmt.Println(">")
+			} else {
+				fmt.Println(" />")
+			}
 			depth++
-			fmt.Printf("%*s", depth*2, "")
-		} else if r == '}' {
-			fmt.Println()
+		} else if n.Type == html.TextNode {
+			if n.Parent != nil && n.Parent.Data == "script" {
+				printJS(n)
+			} else {
+				fmt.Printf("%*s%s\n", depth*2, "", n.Data)
+			}
+		}
+	}
+	endElement := func(n *html.Node) {
+		if n.Type == html.ElementNode {
 			depth--
-			fmt.Printf("%*s", depth*2, "")
-			fmt.Print(string(r))
-		} else if r == ';' && i < len(runes)-1 && runes[i+1] != '}' {
-			fmt.Println(string(r))
-			fmt.Printf("%*s", depth*2, "")
-		} else {
-			fmt.Print(string(r))
+			if n.FirstChild != nil {
+				fmt.Printf("%*s</%s>\n", depth*2, "", n.Data)
+			}
 		}
 	}
-	fmt.Println()
-}
-
-func endElement(n *html.Node) {
-	if n.Type == html.ElementNode {
-		depth--
-		if n.FirstChild != nil {
-			fmt.Printf("%*s</%s>\n", depth*2, "", n.Data)
-		}
-	}
+	forEachNode(n, startElement, endElement)
 }
 
 func forEachNode(n *html.Node, pre, post func(n *html.Node)) {
